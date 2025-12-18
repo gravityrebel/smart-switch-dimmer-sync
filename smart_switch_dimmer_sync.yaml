@@ -1,0 +1,86 @@
+blueprint:
+  name: Smart Switch Dimmer Sync
+  description: "Keep your smart switch's dimmer in sync with your smart lights, regardless of where they changed from."
+  domain: automation
+  author: gravityrebel
+  homeassistant:
+    min_version: 2024.8.0
+  input:
+    light_pairs:
+      name: Light pairs
+      description: "add description here"
+      icon: mdi:lights
+      input:
+        smart_bulb:
+          name: Primary Light
+          description: The smart bulb to track
+          selector:
+            entity:
+              filter:
+                - domain: light
+              multiple: false
+        smart_switch_light:
+          name: Smart Switch Light
+          description: The smart switch light to track
+          selector:
+            entity:
+              filter:
+                - domain: light
+              multiple: false
+mode: single
+max_exceeded: silent
+# End Blueprint definition
+
+# Start Automation definition
+variables: # Set up variables to be used in templates.
+  smartBulb: !input smart_bulb
+triggers:
+  - trigger: state
+    alias: When brightness changes
+    entity_id: !input smart_bulb
+    attribute: brightness
+    id: brightness
+  - trigger: state
+    alias: When lights are turned on
+    entity_id: !input smart_bulb
+    id: turnedOn
+    to: "on"
+    from: null
+  - alias: When lights are turned off
+    entity_id: !input smart_bulb
+    id: turnedOff
+    trigger: state
+    to: "off"
+    from: null
+condition: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - brightness
+              - turnedOn
+          - condition: state
+            entity_id: !input smart_bulb
+            state: "on"
+          - condition: template
+            value_template: >
+              {% set b = state_attr(smartBulb, 'brightness') %}
+              {{ b not in [none, 'unknown', 'unavailable'] and b is number }}
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              brightness: "{{ state_attr(smartBulb, 'brightness') }}"
+            target:
+              entity_id: !input smart_switch_light
+      - conditions:
+          - condition: trigger
+            id:
+              - turnedOff
+        sequence:
+          - action: light.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: !input smart_switch_light
